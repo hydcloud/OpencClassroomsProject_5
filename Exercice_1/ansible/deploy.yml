@@ -1,13 +1,38 @@
 ---
-- name: Openclassrooms P5 EDO deployment
-  hosts: all
+- name: Deployer l'application Angular
+  hosts: aws
+  become: true
 
   tasks:
-    # Implémenter ici les tâches:
-    # - d'installation de Nginx;
-    # - d'installation de l'application Angular (voir répertoire ./app);
-    # - de configuration du serveur Nginx pour servir l'application Angular
+    - name: Installer Nginx
+      ansible.builtin.dnf:
+        name: nginx
+        state: present
+
+    - name: Demarrer et activer Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Deployer l'application Angular
+      ansible.builtin.copy:
+        src: app/olympic-games-starter/
+        dest: /usr/share/nginx/html/
+        owner: nginx
+        group: nginx
+
+    - name: Deployer la configuration Nginx
+      ansible.builtin.copy:
+        src: files/angular.conf
+        dest: /etc/nginx/conf.d/angular.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Redemarrer Nginx
 
   handlers:
-    # Implémenter ici le handler redémarrant automatiquement le serveur Nginx lorsque le playbook
-    # opère une modification de la configuration du serveur.
+    - name: Redemarrer Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

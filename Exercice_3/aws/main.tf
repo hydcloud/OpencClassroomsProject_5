@@ -1,8 +1,7 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.16"
+      source = "hashicorp/aws"
     }
   }
 
@@ -10,7 +9,8 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region  = "us-east-1"
+  profile = "terraform-user"
 }
 
 resource "aws_instance" "webserver" {
@@ -51,6 +51,20 @@ resource "aws_instance" "haproxy" {
     inline = [
       "sudo apt-get update -y",
       "sudo apt-get install -y haproxy",
+    ]
+  }
+
+  provisioner "file" {
+    content     = local.haproxy_config
+    destination = "/tmp/haproxy.cfg"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo cp /tmp/haproxy.cfg /etc/haproxy/haproxy.cfg",
+      "sudo haproxy -c -f /etc/haproxy/haproxy.cfg",
+      "sudo systemctl restart haproxy",
+      "sudo systemctl enable haproxy"
     ]
   }
 }
@@ -114,4 +128,11 @@ output "haproxy_ssh" {
 
 output "haproxy_http" {
   value = "Pour accéder au load-balancer:\n\thttp://${aws_instance.haproxy.public_dns}"
+}
+
+locals {
+  haproxy_config = templatefile("${path.module}/haproxy.cfg.tpl", {
+    webserver1_ip = aws_instance.webserver[0].private_ip
+    webserver2_ip = aws_instance.webserver[1].private_ip
+  })
 }
