@@ -93,6 +93,13 @@ resource "aws_security_group" "my_security_group" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  ingress {
+    description = "HAProxy Stats"
+    from_port   = 8404
+    to_port     = 8404
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 variable "generated_key_name" {
@@ -135,4 +142,31 @@ locals {
     webserver1_ip = aws_instance.webserver[0].private_ip
     webserver2_ip = aws_instance.webserver[1].private_ip
   })
+}
+
+resource "terraform_data" "haproxy_config_deploy" {
+  triggers_replace = [
+    sha256(local.haproxy_config),
+    aws_instance.haproxy.id
+  ]
+
+  connection {
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = tls_private_key.my_ssh_key.private_key_pem
+    host        = aws_instance.haproxy.public_ip
+  }
+
+  provisioner "file" {
+    content     = local.haproxy_config
+    destination = "/tmp/haproxy.cfg"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo haproxy -c -f /tmp/haproxy.cfg",
+      "sudo cp /tmp/haproxy.cfg /etc/haproxy/haproxy.cfg",
+      "sudo systemctl reload haproxy"
+    ]
+  }
 }
